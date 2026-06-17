@@ -1,0 +1,10 @@
+.direnv/
+result
+result-*
+
+__pycache__/
+*.py[cod]
+build/
+dist/
+*.egg-info/
+.ruff_cache/

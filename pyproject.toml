@@ -1,0 +1,11 @@
+[project]
+name = "nix-docs-extractor"
+version = "0.1.0"
+requires-python = ">=3.12"
+
+[project.scripts]
+nix-docs-extractor = "nix_docs_extractor:main"
+
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
