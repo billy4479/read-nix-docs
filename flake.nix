@@ -38,6 +38,11 @@
               setuptools
               wheel
             ];
+
+            postPatch = ''
+              substituteInPlace src/nix_docs_extractor/__init__.py \
+                --replace-fail '@nixpkgs_doc@' '${nixpkgs}/doc'
+            '';
           };
           default = app;
         };
