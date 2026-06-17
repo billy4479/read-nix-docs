@@ -136,7 +136,31 @@ class NixDocsExtractorTests(unittest.TestCase):
         )
 
         self.assertEqual(status, 0)
-        self.assertIn("cargo-hash\n", stdout.getvalue())
+        self.assertIn("###\tcargo-hash\n", stdout.getvalue())
+
+    def test_index_command_can_list_subsections(self) -> None:
+        stdout = io.StringIO()
+        status = run(
+            ["--docs-root", str(self.docs_root), "index", "rust", "--titles"],
+            stdout=stdout,
+            stderr=io.StringIO(),
+        )
+
+        self.assertEqual(status, 0)
+        output = stdout.getvalue()
+        self.assertIn("###\tcargo-hash\tCargo hash\n", output)
+        self.assertNotIn("after-rust", output)
+
+    def test_index_command_reports_missing_section(self) -> None:
+        stderr = io.StringIO()
+        status = run(
+            ["--docs-root", str(self.docs_root), "index", "missing-section"],
+            stdout=io.StringIO(),
+            stderr=stderr,
+        )
+
+        self.assertEqual(status, 1)
+        self.assertIn("error: section not found: missing-section", stderr.getvalue())
 
     def test_get_command_prints_section_markdown(self) -> None:
         stdout = io.StringIO()

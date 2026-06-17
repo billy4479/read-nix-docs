@@ -319,6 +319,13 @@ def section_path(section: Heading) -> str:
     return " > ".join((*section.ancestry, section.title))
 
 
+def format_index_line(section: Heading, include_title: bool) -> str:
+    prefix = f"{'#' * section.level}\t{section.id}"
+    if include_title:
+        return f"{prefix}\t{section.title}"
+    return prefix
+
+
 def clean_markdown(lines: Sequence[SourceLine]) -> str:
     cleaned: list[str] = []
     in_fence = False
@@ -387,6 +394,11 @@ def build_arg_parser() -> argparse.ArgumentParser:
     get.add_argument("section", help="section id or exact heading title")
 
     index = subparsers.add_parser("index", help="list all section ids")
+    index.add_argument(
+        "section",
+        nargs="?",
+        help="optional section id or exact title whose subsections should be listed",
+    )
     index.add_argument("--titles", action="store_true", help="include section titles")
     return parser
 
@@ -407,11 +419,20 @@ def run(
     sections = parse_sections(lines)
 
     if args.command == "index":
-        for section in sections:
-            if args.titles:
-                print(f"{section.id}\t{section.title}", file=stdout)
-            else:
-                print(section.id, file=stdout)
+        indexed_sections = sections
+        if args.section is not None:
+            parent = find_section(sections, args.section)
+            if parent is None:
+                print(f"error: section not found: {args.section}", file=stderr)
+                return 1
+            indexed_sections = [
+                section
+                for section in sections
+                if section.start > parent.start and section.end <= parent.end
+            ]
+
+        for section in indexed_sections:
+            print(format_index_line(section, args.titles), file=stdout)
         return 0
 
     if args.command == "search":
