@@ -8,9 +8,20 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Sequence, TextIO
 
+from .option_docs import (
+    find_option,
+    format_option_markdown,
+    load_options,
+    option_declaration,
+    option_description_summary,
+    search_options,
+)
+
 
 DEVELOPMENT_DOCS_ROOT = Path("../../src/nixpkgs/doc")
 NIXPKGS_DOCS_ROOT = Path("@nixpkgs_doc@")
+NIXOS_OPTIONS_FILE = Path("@nixos_options_json@")
+HOME_MANAGER_OPTIONS_FILE = Path("@home_manager_options_json@")
 DEFAULT_ENTRYPOINT = "manual.md.in"
 
 INCLUDE_START_RE = re.compile(r"^```\{=include=}\s*(.*)\s*$")
@@ -372,35 +383,78 @@ def clean_markdown(lines: Sequence[SourceLine]) -> str:
 
 def build_arg_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Search and extract sections from the Nixpkgs markdown manual."
+        description="Search and read Nix documentation offline."
     )
-    parser.add_argument(
+    corpora = parser.add_subparsers(dest="corpus", required=True)
+
+    manual = corpora.add_parser(
+        "nixpkgs-manual", help="search the Nixpkgs Markdown manual"
+    )
+    manual.add_argument(
         "--docs-root",
         type=Path,
         default=default_docs_root(),
         help=f"path to nixpkgs/doc (default: {default_docs_root()})",
     )
-    subparsers = parser.add_subparsers(dest="command", required=True)
+    manual_commands = manual.add_subparsers(dest="command", required=True)
 
-    search = subparsers.add_parser("search", help="search manual sections")
+    search = manual_commands.add_parser("search", help="search manual sections")
     search.add_argument("query", nargs="+", help="search terms")
     search.add_argument(
         "--limit", type=int, default=20, help="maximum number of results"
     )
 
-    get = subparsers.add_parser(
+    get = manual_commands.add_parser(
         "get", help="print markdown for a section id or exact title"
     )
     get.add_argument("section", help="section id or exact heading title")
 
-    index = subparsers.add_parser("index", help="list all section ids")
+    index = manual_commands.add_parser("index", help="list all section ids")
     index.add_argument(
         "section",
         nargs="?",
         help="optional section id or exact title whose subsections should be listed",
     )
     index.add_argument("--titles", action="store_true", help="include section titles")
+
+    _add_option_corpus_parser(
+        corpora,
+        "nixos-options",
+        "search NixOS configuration options",
+        NIXOS_OPTIONS_FILE,
+    )
+    _add_option_corpus_parser(
+        corpora,
+        "home-manager-docs",
+        "search Home Manager configuration options",
+        HOME_MANAGER_OPTIONS_FILE,
+    )
     return parser
+
+
+def _add_option_corpus_parser(
+    corpora: argparse._SubParsersAction[argparse.ArgumentParser],
+    name: str,
+    help_text: str,
+    default_file: Path,
+) -> None:
+    corpus = corpora.add_parser(name, help=help_text)
+    corpus.add_argument(
+        "--options-file",
+        type=Path,
+        default=default_file,
+        help=f"path to generated options.json (default: {default_file})",
+    )
+    commands = corpus.add_subparsers(dest="command", required=True)
+
+    search = commands.add_parser("search", help="search options")
+    search.add_argument("query", nargs="+", help="search terms")
+    search.add_argument(
+        "--limit", type=int, default=20, help="maximum number of results"
+    )
+
+    get = commands.add_parser("get", help="print an option as Markdown")
+    get.add_argument("option", help="exact option name")
 
 
 def run(
@@ -410,6 +464,9 @@ def run(
 ) -> int:
     parser = build_arg_parser()
     args = parser.parse_args(argv)
+    if args.corpus != "nixpkgs-manual":
+        return _run_option_command(args, stdout, stderr)
+
     docs_root = args.docs_root.resolve()
     try:
         lines = load_manual(docs_root)
@@ -462,6 +519,48 @@ def run(
 
     parser.error(f"unknown command: {args.command}")
     return 2
+
+
+def _run_option_command(
+    args: argparse.Namespace, stdout: TextIO, stderr: TextIO
+) -> int:
+    options_file = args.options_file.resolve()
+    try:
+        options = load_options(options_file)
+    except (FileNotFoundError, ValueError, OSError) as error:
+        print(f"error: {error}", file=stderr)
+        return 2
+
+    if args.command == "search":
+        query = " ".join(args.query)
+        results = search_options(options, query, max(args.limit, 0))
+        if not results:
+            print(f"No options matched: {query}", file=stdout)
+            return 0
+
+        for index, (score, option) in enumerate(results, start=1):
+            if index > 1:
+                print(file=stdout)
+            print(f"{index}. {option.name}", file=stdout)
+            print(f"   type:        {option.option_type or 'unspecified'}", file=stdout)
+            summary = option_description_summary(option)
+            if summary:
+                print(f"   description: {summary}", file=stdout)
+            declaration = option_declaration(option)
+            if declaration:
+                print(f"   declared by: {declaration}", file=stdout)
+            print(f"   score:       {score}", file=stdout)
+        return 0
+
+    if args.command == "get":
+        option = find_option(options, args.option)
+        if option is None:
+            print(f"error: option not found: {args.option}", file=stderr)
+            return 1
+        stdout.write(format_option_markdown(option))
+        return 0
+
+    raise ValueError(f"unknown option command: {args.command}")
 
 
 def main() -> None:

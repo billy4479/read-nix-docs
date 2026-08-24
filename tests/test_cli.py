@@ -8,11 +8,11 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-import nix_docs_extractor
-from nix_docs_extractor import load_manual, parse_sections, run, search_sections
+import read_nix_docs
+from read_nix_docs import load_manual, parse_sections, run, search_sections
 
 
-class NixDocsExtractorTests(unittest.TestCase):
+class ReadNixDocsTests(unittest.TestCase):
     def setUp(self) -> None:
         self.tempdir = tempfile.TemporaryDirectory()
         self.docs_root = Path(self.tempdir.name)
@@ -81,13 +81,13 @@ class NixDocsExtractorTests(unittest.TestCase):
         self.assertIn("# Generated Stub {#generated-stub}", text)
 
     def test_default_docs_root_prefers_nix_patched_docs_root(self) -> None:
-        original = nix_docs_extractor.NIXPKGS_DOCS_ROOT
+        original = read_nix_docs.NIXPKGS_DOCS_ROOT
         try:
-            nix_docs_extractor.NIXPKGS_DOCS_ROOT = self.docs_root
+            read_nix_docs.NIXPKGS_DOCS_ROOT = self.docs_root
 
-            self.assertEqual(nix_docs_extractor.default_docs_root(), self.docs_root)
+            self.assertEqual(read_nix_docs.default_docs_root(), self.docs_root)
         finally:
-            nix_docs_extractor.NIXPKGS_DOCS_ROOT = original
+            read_nix_docs.NIXPKGS_DOCS_ROOT = original
 
     def test_parse_sections_extracts_ids_and_boundaries(self) -> None:
         lines = load_manual(self.docs_root)
@@ -115,7 +115,15 @@ class NixDocsExtractorTests(unittest.TestCase):
     def test_search_command_prints_readable_result_blocks(self) -> None:
         stdout = io.StringIO()
         status = run(
-            ["--docs-root", str(self.docs_root), "search", "cargoHash", "--limit", "1"],
+            [
+                "nixpkgs-manual",
+                "--docs-root",
+                str(self.docs_root),
+                "search",
+                "cargoHash",
+                "--limit",
+                "1",
+            ],
             stdout=stdout,
             stderr=io.StringIO(),
         )
@@ -130,7 +138,7 @@ class NixDocsExtractorTests(unittest.TestCase):
     def test_index_command_lists_section_ids(self) -> None:
         stdout = io.StringIO()
         status = run(
-            ["--docs-root", str(self.docs_root), "index"],
+            ["nixpkgs-manual", "--docs-root", str(self.docs_root), "index"],
             stdout=stdout,
             stderr=io.StringIO(),
         )
@@ -141,7 +149,14 @@ class NixDocsExtractorTests(unittest.TestCase):
     def test_index_command_can_list_subsections(self) -> None:
         stdout = io.StringIO()
         status = run(
-            ["--docs-root", str(self.docs_root), "index", "rust", "--titles"],
+            [
+                "nixpkgs-manual",
+                "--docs-root",
+                str(self.docs_root),
+                "index",
+                "rust",
+                "--titles",
+            ],
             stdout=stdout,
             stderr=io.StringIO(),
         )
@@ -154,7 +169,13 @@ class NixDocsExtractorTests(unittest.TestCase):
     def test_index_command_reports_missing_section(self) -> None:
         stderr = io.StringIO()
         status = run(
-            ["--docs-root", str(self.docs_root), "index", "missing-section"],
+            [
+                "nixpkgs-manual",
+                "--docs-root",
+                str(self.docs_root),
+                "index",
+                "missing-section",
+            ],
             stdout=io.StringIO(),
             stderr=stderr,
         )
@@ -165,7 +186,13 @@ class NixDocsExtractorTests(unittest.TestCase):
     def test_get_command_prints_section_markdown(self) -> None:
         stdout = io.StringIO()
         status = run(
-            ["--docs-root", str(self.docs_root), "get", "cargo-hash"],
+            [
+                "nixpkgs-manual",
+                "--docs-root",
+                str(self.docs_root),
+                "get",
+                "cargo-hash",
+            ],
             stdout=stdout,
             stderr=io.StringIO(),
         )
@@ -177,7 +204,13 @@ class NixDocsExtractorTests(unittest.TestCase):
     def test_get_command_removes_comments_and_unresolved_placeholders(self) -> None:
         stdout = io.StringIO()
         status = run(
-            ["--docs-root", str(self.docs_root), "get", "rust"],
+            [
+                "nixpkgs-manual",
+                "--docs-root",
+                str(self.docs_root),
+                "get",
+                "rust",
+            ],
             stdout=stdout,
             stderr=io.StringIO(),
         )

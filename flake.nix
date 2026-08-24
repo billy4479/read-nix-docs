@@ -1,6 +1,10 @@
 {
   inputs = {
     nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
+    home-manager = {
+      url = "github:nix-community/home-manager";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
     flake-utils.url = "github:numtide/flake-utils";
   };
 
@@ -8,12 +12,21 @@
     {
       self,
       nixpkgs,
+      home-manager,
       flake-utils,
     }:
     flake-utils.lib.eachDefaultSystem (
       system:
       let
         pkgs = nixpkgs.legacyPackages.${system};
+
+        nixosOptions =
+          (import (nixpkgs + "/nixos/release.nix") {
+            inherit nixpkgs;
+            supportedSystems = [ "x86_64-linux" ];
+          }).options;
+
+        homeManagerOptions = home-manager.packages.${system}.docs-json;
 
         pyPkgs = pkgs.python3.withPackages (
           python-pkgs: with python-pkgs; [
@@ -40,8 +53,10 @@
             ];
 
             postPatch = ''
-              substituteInPlace src/nix_docs_extractor/__init__.py \
-                --replace-fail '@nixpkgs_doc@' '${nixpkgs}/doc'
+              substituteInPlace src/read_nix_docs/__init__.py \
+                --replace-fail '@nixpkgs_doc@' '${nixpkgs}/doc' \
+                --replace-fail '@nixos_options_json@' '${nixosOptions}/share/doc/nixos/options.json' \
+                --replace-fail '@home_manager_options_json@' '${homeManagerOptions}/share/doc/home-manager/options.json'
             '';
           };
           default = app;
