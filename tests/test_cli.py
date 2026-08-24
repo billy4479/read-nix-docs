@@ -4,18 +4,27 @@ import io
 import sys
 import tempfile
 import unittest
+from contextlib import redirect_stderr
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 import read_nix_docs
-from read_nix_docs import load_manual, parse_sections, run, search_sections
+from read_nix_docs import (
+    build_arg_parser,
+    load_manual,
+    parse_sections,
+    run,
+    search_sections,
+)
 
 
 class ReadNixDocsTests(unittest.TestCase):
     def setUp(self) -> None:
         self.tempdir = tempfile.TemporaryDirectory()
         self.docs_root = Path(self.tempdir.name)
+        self.original_nixpkgs_docs_root = read_nix_docs.NIXPKGS_DOCS_ROOT
+        read_nix_docs.NIXPKGS_DOCS_ROOT = self.docs_root
         (self.docs_root / "chapters").mkdir()
         (self.docs_root / "sections").mkdir()
         (self.docs_root / "manual.md.in").write_text(
@@ -61,6 +70,7 @@ class ReadNixDocsTests(unittest.TestCase):
         )
 
     def tearDown(self) -> None:
+        read_nix_docs.NIXPKGS_DOCS_ROOT = self.original_nixpkgs_docs_root
         self.tempdir.cleanup()
 
     def test_load_manual_expands_local_includes_and_substitutes_version(self) -> None:
@@ -81,13 +91,13 @@ class ReadNixDocsTests(unittest.TestCase):
         self.assertIn("# Generated Stub {#generated-stub}", text)
 
     def test_default_docs_root_prefers_nix_patched_docs_root(self) -> None:
-        original = read_nix_docs.NIXPKGS_DOCS_ROOT
-        try:
-            read_nix_docs.NIXPKGS_DOCS_ROOT = self.docs_root
+        self.assertEqual(read_nix_docs.default_docs_root(), self.docs_root)
 
-            self.assertEqual(read_nix_docs.default_docs_root(), self.docs_root)
-        finally:
-            read_nix_docs.NIXPKGS_DOCS_ROOT = original
+    def test_manual_parser_rejects_docs_root_override(self) -> None:
+        with redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
+            build_arg_parser().parse_args(
+                ["nixpkgs-manual", "--docs-root", str(self.docs_root), "index"]
+            )
 
     def test_parse_sections_extracts_ids_and_boundaries(self) -> None:
         lines = load_manual(self.docs_root)
@@ -117,8 +127,6 @@ class ReadNixDocsTests(unittest.TestCase):
         status = run(
             [
                 "nixpkgs-manual",
-                "--docs-root",
-                str(self.docs_root),
                 "search",
                 "cargoHash",
                 "--limit",
@@ -138,7 +146,7 @@ class ReadNixDocsTests(unittest.TestCase):
     def test_index_command_lists_section_ids(self) -> None:
         stdout = io.StringIO()
         status = run(
-            ["nixpkgs-manual", "--docs-root", str(self.docs_root), "index"],
+            ["nixpkgs-manual", "index"],
             stdout=stdout,
             stderr=io.StringIO(),
         )
@@ -151,8 +159,6 @@ class ReadNixDocsTests(unittest.TestCase):
         status = run(
             [
                 "nixpkgs-manual",
-                "--docs-root",
-                str(self.docs_root),
                 "index",
                 "rust",
                 "--titles",
@@ -171,8 +177,6 @@ class ReadNixDocsTests(unittest.TestCase):
         status = run(
             [
                 "nixpkgs-manual",
-                "--docs-root",
-                str(self.docs_root),
                 "index",
                 "missing-section",
             ],
@@ -188,8 +192,6 @@ class ReadNixDocsTests(unittest.TestCase):
         status = run(
             [
                 "nixpkgs-manual",
-                "--docs-root",
-                str(self.docs_root),
                 "get",
                 "cargo-hash",
             ],
@@ -206,8 +208,6 @@ class ReadNixDocsTests(unittest.TestCase):
         status = run(
             [
                 "nixpkgs-manual",
-                "--docs-root",
-                str(self.docs_root),
                 "get",
                 "rust",
             ],

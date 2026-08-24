@@ -390,12 +390,6 @@ def build_arg_parser() -> argparse.ArgumentParser:
     manual = corpora.add_parser(
         "nixpkgs-manual", help="search the Nixpkgs Markdown manual"
     )
-    manual.add_argument(
-        "--docs-root",
-        type=Path,
-        default=default_docs_root(),
-        help=f"path to nixpkgs/doc (default: {default_docs_root()})",
-    )
     manual_commands = manual.add_subparsers(dest="command", required=True)
 
     search = manual_commands.add_parser("search", help="search manual sections")
@@ -467,7 +461,7 @@ def run(
     if args.corpus != "nixpkgs-manual":
         return _run_option_command(args, stdout, stderr)
 
-    docs_root = args.docs_root.resolve()
+    docs_root = default_docs_root().resolve()
     try:
         lines = load_manual(docs_root)
     except (FileNotFoundError, ValueError, OSError) as error:
