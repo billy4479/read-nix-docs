@@ -10,10 +10,10 @@
 
   outputs =
     {
-      self,
       nixpkgs,
       home-manager,
       flake-utils,
+      ...
     }:
     flake-utils.lib.eachDefaultSystem (
       system:
@@ -37,27 +37,8 @@
       in
       {
         packages = rec {
-          app = pkgs.python3.pkgs.buildPythonApplication {
-            pname =
-              if builtins.pathExists ./pyproject.toml then
-                (builtins.fromTOML (builtins.readFile ./pyproject.toml)).project.name
-              else
-                "app";
-            version = "0.1.0";
-            src = ./.;
-            pyproject = true;
-
-            nativeBuildInputs = with pkgs.python3.pkgs; [
-              setuptools
-              wheel
-            ];
-
-            postPatch = ''
-              substituteInPlace src/read_nix_docs/__init__.py \
-                --replace-fail '@nixpkgs_doc@' '${nixpkgs}/doc' \
-                --replace-fail '@nixos_options_json@' '${nixosOptions}/share/doc/nixos/options.json' \
-                --replace-fail '@home_manager_options_json@' '${homeManagerOptions}/share/doc/home-manager/options.json'
-            '';
+          app = pkgs.callPackage ./package.nix {
+            inherit nixpkgs nixosOptions homeManagerOptions;
           };
           default = app;
         };
@@ -68,7 +49,7 @@
           packages = with pkgs; [
             ruff
 
-            (pkgs.writeShellScriptBin "init" ''
+            (pkgs.writeShellScriptBin "init" /* sh */ ''
               set -eu
 
               if [ -d .git ]; then
